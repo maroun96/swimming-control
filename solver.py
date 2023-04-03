@@ -102,7 +102,7 @@ class NSSolver:
             
             if (self.simu_wrap.time > self._export_time):
                 self._global_counter += 1
-                self.fields_exporter.export_vectors(self._results_dir_path / f"solution{self._global_counter}.pvtr", timestep=self.simu_wrap.time)
+                self.fields_exporter.export_vectors(self.results_dir_path / f"solution{self._global_counter}.pvtr", timestep=self.simu_wrap.time)
                 self._export_time += self._export_time_interval
     
     def add_exported_vec(self, vec: PETSc.Vec, vector_name: str):
