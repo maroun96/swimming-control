@@ -57,14 +57,20 @@ class NSSolver:
         self.fields_exporter = Exporter(da=da, grid=main_cfg.grid)
         self.obs_exporter = obs_exporter
 
-        if not isinstance(results_dir_path, Path):
-            results_dir_path = Path(results_dir_path)
-
-        self._results_dir_path = results_dir_path.resolve()
+        self.results_dir_path = results_dir_path.resolve()
 
         self._global_counter = 0
         self._export_time = 0
         self._export_time_interval = self.simu_wrap.time_snapshots
+    
+    @property
+    def results_dir_path(self):
+        return self._results_dir_path
+
+    @results_dir_path.setter
+    def results_dir_path(self, p: Union[str, Path]):
+        if not isinstance(p, Path):
+            self._results_dir_path = Path(p)
     
 
     def simulate_time_seg(self, t_final: float, interpolator: PPoly):
