@@ -32,8 +32,9 @@ class ObsExporter:
             self.obs_data[i].append(self._get_obs_row(simu_wrap, obs_wrap, i))
     
     def clear(self):
-        for obs_list in self.obs_data:
-            obs_list.clear()
+        if self.obs_data:
+            for obs_list in self.obs_data:
+                obs_list.clear()
 
 def check_bounds(obs_wrap: ObsStructWrapper, obs_id: int, domain_range: tuple[tuple[float, float], tuple[float, float]]):
     x_markers = obs_wrap.x_markers[obs_id]
