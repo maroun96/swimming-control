@@ -16,7 +16,7 @@ from helpers import ObsExporter, check_bounds
 
 
 class NSSolver:
-    def __init__(self, main_cfg: Config, results_dir_path: Union[str, Path], obs_exporter: ObsExporter) -> None:
+    def __init__(self, main_cfg: Config, obs_exporter: ObsExporter) -> None:
         da = initialize_dmda(grid=main_cfg.grid)
         da.setUniformCoordinates(xmin=main_cfg.grid.xmin, xmax=main_cfg.grid.xmax, ymin=main_cfg.grid.ymin, 
                          ymax=main_cfg.grid.ymax, zmin = 0, zmax = 0)
@@ -57,8 +57,6 @@ class NSSolver:
         self.fields_exporter = Exporter(da=da, grid=main_cfg.grid)
         self.obs_exporter = obs_exporter
 
-        self.results_dir_path = results_dir_path.resolve()
-
         self._global_counter = 0
         self._export_time = 0
         self._export_time_interval = self.simu_wrap.time_snapshots
@@ -70,7 +68,8 @@ class NSSolver:
     @results_dir_path.setter
     def results_dir_path(self, p: Union[str, Path]):
         if not isinstance(p, Path):
-            self._results_dir_path = Path(p)
+            p = Path(p)
+        self._results_dir_path = p.resolve()
     
 
     def simulate_time_seg(self, t_final: float, interpolator: PPoly):
