@@ -1,0 +1,46 @@
+grid:
+  nx: 601
+  ny: 151
+  xmin: -5.5
+  xmax: 0.5
+  ymin: -0.75
+  ymax: 0.75
+  xperiodic: True
+  yperiodic: False
+  epsilon: 2.5
+
+simu:
+  bi_fluid: False
+  fluid: 2 #(Set to zero if bifluid else either 1 or 2)
+  gravity: 0.0
+  dynamic_viscosity1: 1.87e-5
+  dynamic_viscosity2: 0.001
+  density1: 1.2
+  density2: 1
+  surface_tension: 0.0728
+  cfl: 0.3
+  penalty_factor: 1.e+8
+  time_snapshots: 0.05
+  time_final: 6.0
+  implicit: 0 #0: explicit 1: implicit (viscous term)
+  convection_scheme: 4 # 2: mittal 3: upwind 4: weno (else central difference)
+  fluid_force: "exact"
+
+obstacles_number: 1
+
+obstacles:
+  - markers_number: 301
+    diameter: 1
+    density: 1
+    young_modulus: 1.e+3
+    elasticity_modulus: 1.e+1
+
+
+
+
+
+
+
+
+  
+

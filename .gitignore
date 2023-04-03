@@ -1,0 +1,59 @@
+#Input file
+*.DAT
+*.dat
+
+#makefile
+makefile
+
+#Result folders
+data/
+results/
+
+#paraview files
+*.pvsm
+
+#slurm output files
+*.out 
+
+#slurm bash files
+*.sh
+
+#logging
+log.dat
+
+#vscode settings
+.vscode/
+
+#tests
+testing*
+
+#Virtual environment
+venv/
+
+#build folder
+build/
+
+#bin folder
+bin/
+
+#shared libraries
+**/*.so
+
+#python binaries for import
+**/__pycache__/
+
+#C source files in Cython extension packages
+ns2d/solver/navierstokes.c
+ns2d/utils/config.c
+
+#Vscode env file
+.env
+
+#DS_Store
+.DS_Store
+
+#package info
+*.egg-info/
+
+#figures
+*.png
