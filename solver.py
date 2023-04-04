@@ -107,16 +107,17 @@ class NSSolver:
     def add_exported_vec(self, vec: PETSc.Vec, vector_name: str):
         self.fields_exporter.add_vector(vec=vec, vector_name=vector_name)
         
-    def reset(self):
-        init_navier_stokes(
-            self.simu_wrap,
-            self.grid_wrap,
-            self.fields_wrap,
-            self.proc_wrap,
-            self.obs_wrap,
-            self.lin_wrap,
-            self.arr_wrap
-        )
+    def reset(self, func_count: int):
+        if func_count > 0:
+            init_navier_stokes(
+                self.simu_wrap,
+                self.grid_wrap,
+                self.fields_wrap,
+                self.proc_wrap,
+                self.obs_wrap,
+                self.lin_wrap,
+                self.arr_wrap
+            )
         self.obs_exporter.clear()
         self._global_counter = 0
         self._export_time = 0        
