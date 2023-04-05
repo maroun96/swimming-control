@@ -70,6 +70,7 @@ class NSSolver:
         if not isinstance(p, Path):
             p = Path(p)
         self._results_dir_path = p.resolve()
+        self._results_dir_path.mkdir(parents=True, exist_ok=True)
     
 
     def simulate_time_seg(self, t_final: float, interpolator: PPoly):
