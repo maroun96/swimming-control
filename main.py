@@ -2,7 +2,6 @@ import sys
 import pickle
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import petsc4py
@@ -10,6 +9,7 @@ from ns2d.utils.pyconfig import Config
 from petsc4py import PETSc
 from scipy.interpolate import PchipInterpolator
 from scipy.optimize import minimize
+from pyDOE import lhs
 
 from helpers import ObsExporter
 from solver import NSSolver
@@ -24,12 +24,12 @@ FUNC_EVAL_COUNTER = 0
 def objective_function(frequencies: np.ndarray, ns_solver: NSSolver, u_ref: float):
     SIM_PATH = RESULTS_DIR_PATH / f"simu{objective_function.counter}"
     ns_solver.results_dir_path = SIM_PATH
-    dim = frequencies.shape[0]
-    fmin = 0
-    fmax = 3
-    lbda1 = 10
-    lbda2 = 10
     t_final = ns_solver.simu_wrap.time_final
+    
+
+    #prepend zero to frequency array
+    frequencies = np.insert(frequencies, 0, 0.0)
+    dim = frequencies.shape[0]
     t_knots = np.linspace(0, t_final, dim)
     time_spline_func = PchipInterpolator(x=t_knots, y=frequencies, extrapolate=None)
 
@@ -56,7 +56,9 @@ def objective_function(frequencies: np.ndarray, ns_solver: NSSolver, u_ref: floa
     ux_t = obs_data_array[:, 4]
     n_t = ux_t.shape[0]
 
-    obj_func = (1/n_t)*np.linalg.norm(ux_t-u_ref) + lbda1*np.sum(np.maximum(0, frequencies-fmax)**2) + lbda2*np.sum(np.minimum(0, frequencies-fmin)**2)
+    # lbda1*np.sum(np.maximum(0, frequencies-fmax)**2) + lbda2*np.sum(np.minimum(0, frequencies-fmin)**2)
+
+    obj_func = (1/n_t)*np.linalg.norm(ux_t-u_ref)
 
     objective_function.counter += 1
 
@@ -76,24 +78,36 @@ if __name__ == "__main__":
     ns_solver.add_exported_vec(vec=ns_solver.fields.current_time.local_pressure, vector_name="p")
     ns_solver.add_exported_vec(vec=ns_solver.fields.solid_ls[1].local_levelset_solid, vector_name="solid_level_set")
 
-    frequencies = np.array([0, 0.75, 1, 1, 1, 1, 1])
+
+    # frequencies = np.array([0, 0.75, 1, 1, 1, 1, 1])
+    t_nodes = 6
+    x0 = np.zeros(t_nodes)
+    fmin = 0
+    fmax = 2
+
+    sampling = lhs(t_nodes, t_nodes+1)
+    initial_simplex = fmin + (fmax-fmin)*sampling
+
+    bounds = [(fmin, fmax) for _ in range(t_nodes)]
 
     # _ = objective_function(frequencies=frequencies, ns_solver=ns_solver, u_ref=-1)
 
     opt_res = minimize(
         objective_function,
-        x0=frequencies,
+        x0=x0,
         args=(ns_solver, -1),
         method="Nelder-Mead",
+        bounds=bounds,
         options={
-            "maxfev": 20,
-            "return_all": True,
-            "adaptive": True,    
+            "maxfev": 50,
+            "adaptive": True,
+            "initial_simplex": initial_simplex    
         }
     )
 
-    with open(RESULTS_DIR_PATH / "optimal_result.pkl", "wb"):
-        pickle.dump(opt_res)
+    if RANK==0:
+        with open(RESULTS_DIR_PATH / "optimal_result.pkl", "wb"):
+            pickle.dump(opt_res)
 
 
     
