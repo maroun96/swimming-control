@@ -57,3 +57,6 @@ ns2d/utils/config.c
 
 #figures
 *.png
+
+#virtual environment
+venv
