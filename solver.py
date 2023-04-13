@@ -12,8 +12,7 @@ from ns2d.solver.navierstokes import navier_stokes_step, init_navier_stokes
 from ns2d.utils.config import (FieldsStructWrapper, ProcessStructWrapper, GridStructWrapper,
                                 SimuStructWrapper, ObsStructWrapper, LinStructWrapper, ArrayStructWrapper)
 
-from helpers import ObsExporter, check_bounds
-
+from helpers import ObsExporter
 
 class NSSolver:
     def __init__(self, main_cfg: Config, obs_exporter: ObsExporter) -> None:
@@ -87,16 +86,6 @@ class NSSolver:
                 self.arr_wrap
             )
             
-            for i in range(self.obs_wrap.obstacles_number):
-                bool_values = []
-                bv = check_bounds(obs_wrap=self.obs_wrap, obs_id=i, domain_range=self._domain_range)
-                bool_values.append(bv)
-            
-            self.in_bounds = all(bool_values)
-
-            if not self.in_bounds:
-                break
-        
             if self.obs_exporter:
                 self.obs_exporter.append_obs_data(simu_wrap=self.simu_wrap, obs_wrap=self.obs_wrap)
             
