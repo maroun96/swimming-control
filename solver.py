@@ -15,7 +15,7 @@ from ns2d.utils.config import (FieldsStructWrapper, ProcessStructWrapper, GridSt
 from helpers import ObsExporter
 
 class NSSolver:
-    def __init__(self, main_cfg: Config, obs_exporter: ObsExporter) -> None:
+    def __init__(self, main_cfg: Config, obs_exporter: ObsExporter = None) -> None:
         da = initialize_dmda(grid=main_cfg.grid)
         da.setUniformCoordinates(xmin=main_cfg.grid.xmin, xmax=main_cfg.grid.xmax, ymin=main_cfg.grid.ymin, 
                          ymax=main_cfg.grid.ymax, zmin = 0, zmax = 0)
