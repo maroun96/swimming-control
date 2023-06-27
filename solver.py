@@ -15,8 +15,8 @@ from ns2d.utils.config import (FieldsStructWrapper, ProcessStructWrapper, GridSt
 from helpers import ObsExporter
 
 class NSSolver:
-    def __init__(self, main_cfg: Config, obs_exporter: ObsExporter = None) -> None:
-        da = initialize_dmda(grid=main_cfg.grid)
+    def __init__(self, main_cfg: Config, comm: PETSc.Comm, obs_exporter: ObsExporter = None) -> None:
+        da = initialize_dmda(grid=main_cfg.grid, comm=comm)
         da.setUniformCoordinates(xmin=main_cfg.grid.xmin, xmax=main_cfg.grid.xmax, ymin=main_cfg.grid.ymin, 
                          ymax=main_cfg.grid.ymax, zmin = 0, zmax = 0)
         self.fields = FieldsContainer.create_fields(da=da, main_config=main_cfg)
@@ -53,7 +53,7 @@ class NSSolver:
             self.arr_wrap
         )
 
-        self.fields_exporter = Exporter(da=da, grid=main_cfg.grid)
+        self.fields_exporter = Exporter(da=da, grid=main_cfg.grid, comm=comm)
         self.obs_exporter = obs_exporter
 
         self._global_counter = 0
@@ -74,7 +74,7 @@ class NSSolver:
 
     def simulate_time_seg(self, t_final: float, interpolator: PPoly):
         while(self.simu_wrap.time < t_final):
-            self.obs_wrap.swimming_frequency = (interpolator(self.simu_wrap.time), 1)
+            self.obs_wrap.phase = (interpolator(self.simu_wrap.time), 1)
 
             navier_stokes_step(
                 self.simu_wrap,
