@@ -1,14 +1,13 @@
-from typing import Union
+from typing import Union, Callable
 from pathlib import Path
 
-from scipy.interpolate import PPoly
-
+import numpy as np
 from petsc4py import PETSc
 
 from ns2d.utils.pyconfig import initialize_dmda, FieldsContainer, Config
 from ns2d.utils.export import Exporter
 
-from ns2d.solver.navierstokes import navier_stokes_step, init_navier_stokes
+from ns2d.solver.navierstokes import navier_stokes_step, init_navier_stokes, deform_bodies
 from ns2d.utils.config import (FieldsStructWrapper, ProcessStructWrapper, GridStructWrapper,
                                 SimuStructWrapper, ObsStructWrapper, LinStructWrapper, ArrayStructWrapper)
 
@@ -36,8 +35,13 @@ class NSSolver:
         self.lin_wrap = LinStructWrapper()
         self.arr_wrap = ArrayStructWrapper()
 
+        self._amax = 1.0
+        self._ta = 0.2
+
+        self._areg_func = lambda t: min(t/self._ta, self._amax)
+
         #Add these parameters to config later
-        self.obs_wrap.maximum_amplitude = (1, 1)
+        #self.obs_wrap.maximum_amplitude = (1, 1)
         self.obs_wrap.wavelength = (1, 1)
         self.obs_wrap.amp_coef0 = (0.02, 1)
         self.obs_wrap.amp_coef1 = (-0.12, 1)
@@ -52,6 +56,8 @@ class NSSolver:
             self.lin_wrap,
             self.arr_wrap
         )
+
+        
 
         self.fields_exporter = Exporter(da=da, grid=main_cfg.grid, comm=comm)
         self.obs_exporter = obs_exporter
@@ -71,31 +77,42 @@ class NSSolver:
         self._results_dir_path = p.resolve()
         self._results_dir_path.mkdir(parents=True, exist_ok=True)
     
-
-    def simulate_time_seg(self, t_final: float, interpolator: PPoly):
+    def simulate_time_seg(self, phase_func: Callable,  t_final: float = None):
+        if t_final is None: t_final = self.simu_wrap.time_final
         while(self.simu_wrap.time < t_final):
-            self.obs_wrap.phase = (interpolator(self.simu_wrap.time), 1)
+            self.step(phase=phase_func(self.simu_wrap.time))
+        
+    def step(self, phase):
+        self.obs_wrap.phase = (phase, 1)
 
-            navier_stokes_step(
-                self.simu_wrap,
-                self.grid_wrap,
-                self.fields_wrap,
-                self.proc_wrap,
-                self.obs_wrap,
-                self.lin_wrap,
-                self.arr_wrap
-            )
+        self.obs_wrap.maximum_amplitude = (self._areg_func(t=self.simu_wrap.time), 1)
+
+        PETSc.Sys.Print(f"amax = {self.obs_wrap.maximum_amplitude[0]}")
+
+        navier_stokes_step(
+            self.simu_wrap,
+            self.grid_wrap,
+            self.fields_wrap,
+            self.proc_wrap,
+            self.obs_wrap,
+            self.lin_wrap,
+            self.arr_wrap
+        )
             
-            if self.obs_exporter:
-                self.obs_exporter.append_obs_data(simu_wrap=self.simu_wrap, obs_wrap=self.obs_wrap)
+        if self.obs_exporter:
+            self.obs_exporter.append_obs_data(simu_wrap=self.simu_wrap, obs_wrap=self.obs_wrap)
             
-            if (self.simu_wrap.time > self._export_time):
-                self._global_counter += 1
-                self.fields_exporter.export_vectors(self.results_dir_path / f"solution{self._global_counter}.pvtr", timestep=self.simu_wrap.time)
-                self._export_time += self._export_time_interval
+        self._export_vectors()
     
     def add_exported_vec(self, vec: PETSc.Vec, vector_name: str):
         self.fields_exporter.add_vector(vec=vec, vector_name=vector_name)
+    
+    def _export_vectors(self):
+        if (self.simu_wrap.time > self._export_time):
+            self._global_counter += 1
+            self.fields_exporter.export_vectors(self.results_dir_path / f"solution{self._global_counter}.pvtr", timestep=self.simu_wrap.time)
+            self._export_time += self._export_time_interval
+
         
     def reset(self, func_count: int):
         if func_count > 0:
