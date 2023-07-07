@@ -50,7 +50,7 @@ def objective_function(frequencies: np.ndarray, ns_solver: NSSolver, u_ref: floa
 
     for tf in t_knots[1:]:
         PETSc.Sys.Print("Time segment Start !", comm=PETSc.COMM_WORLD)
-        ns_solver.simulate_time_seg(t_final=tf, interpolator=time_spline_func_int)
+        ns_solver.simulate_time_seg(phase_func=time_spline_func_int, t_final=tf)
         PETSc.Sys.Print("Time segment Done !", comm=PETSc.COMM_WORLD)
         # if not ns_solver.in_bounds:
         #     break
