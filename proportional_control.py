@@ -8,7 +8,7 @@ import numpy as np
 import petsc4py
 
 from petsc4py import PETSc
-from scipy.integrate import simpson
+from scipy.integrate import trapezoid
 
 from ns2d.utils.pyconfig import Config
 from ns2d.utils.export import ObsExporter
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     time_list = [ns_solver.simu_wrap.time]
     ns_solver.results_dir_path = RESULTS_DIR_PATH
     fmin = 0
-    fmax = 5
+    fmax = 4
 
     while (ns_solver.simu_wrap.time < ns_solver.simu_wrap.time_final):
         u_swim  = ns_solver.obs_wrap.velocity_x[0]
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         if frequency < fmin: frequency = fmin
         if frequency > fmax: frequency = fmax
         freq_list.append(frequency)
-        phase = simpson(y=freq_list, x=time_list)
+        phase = trapezoid(y=freq_list, x=time_list)
         PETSc.Sys.Print(f"phase = {2*np.pi*phase}", comm=COMM)
         PETSc.Sys.Print(f"frequency = {frequency}", comm=COMM)
         ns_solver.step(phase=phase)

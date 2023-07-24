@@ -19,7 +19,7 @@ results/
 *.sh
 
 #logging
-log.dat
+log*.dat
 
 #vscode settings
 .vscode/

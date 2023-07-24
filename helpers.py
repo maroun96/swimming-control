@@ -1,55 +1,109 @@
-from typing import Union
+from collections import deque
 
 import numpy as np
-from ns2d.utils.config import SimuStructWrapper, ObsStructWrapper
+from ns2d.utils.export import ObsExporter
+from scipy.integrate import trapezoid
 
-class ObsExporter:
-    def __init__(self) -> None:
-        self._exported_params = []
-        self.obs_data = None
-    
-    def add_exported_param(self, name: Union[list[str], str]):
-        if isinstance(name, str):
-            self._exported_params.append(name)
-        elif isinstance(name, list):
-            self._exported_params.extend(name)
 
-    def _get_obs_row(self, simu_wrap: SimuStructWrapper, obs_wrap: ObsStructWrapper, obs_id: int):
-        row = []
-        row.append(simu_wrap.time)
-        for param_name in self._exported_params:
-            param = getattr(obs_wrap, param_name)[obs_id]
-            row.append(param)
+class SlidingWindow:
+    def __init__(self, window_length=0.1, init_zero=False):
+        self.window_length = window_length
+        self.t_sliding_window = deque([])
+        self.data_set = {}
+        self.data_set_avg = {}
         
-        return np.array(row)
+        self.window_size_flag = False
+        self.init_zero = init_zero
+
+        if self.init_zero:
+            self.t_sliding_window.append(0)
+
+    def append(self, t, other_data = None):
+        self.t_sliding_window.append(t)
+        
+        if other_data:
+            assert other_data.keys() == self.data_set.keys()
+            for k, v in self.data_set.items():
+                v.append(other_data[k])
+        
+        self._cut_to_interval_length()
+        
+        if self.window_size_flag:
+            self._get_avg_values()
     
-    def append_obs_data(self, simu_wrap: SimuStructWrapper, obs_wrap: ObsStructWrapper):
-        obstacle_num = obs_wrap.obstacles_number
-        if self.obs_data is None:
-            self.obs_data = [[]]*obstacle_num
-       
-        for i in range(obstacle_num):
-            self.obs_data[i].append(self._get_obs_row(simu_wrap, obs_wrap, i))
+    def add_data(self, name):
+        self.data_set.update({name: deque([])})
+        self.data_set_avg.update({name: []})
+
+        if self.init_zero:
+            self.data_set[name].append(0)
+            self.data_set_avg[name].append(0)
     
-    def clear(self):
-        if self.obs_data:
-            for obs_list in self.obs_data:
-                obs_list.clear()
+    def _cut_to_interval_length(self):
+        interval_length = self._get_interval_length()
+        if interval_length > self.window_length:
+            if not self.window_size_flag: self.window_size_flag = True
+            counter = 1
+            shifted_interval_length = self._get_interval_length(starting_idx=counter)
+            while (shifted_interval_length > self.window_length):
+                counter += 1
+                shifted_interval_length = self._get_interval_length(starting_idx=counter)
+            
+            shifted_interval_len_pos = self._get_interval_length(starting_idx=counter-1)
+            
+            if abs(self.window_length-shifted_interval_length) <= abs(self.window_length-shifted_interval_len_pos):
+                for _ in range(counter): 
+                    self.t_sliding_window.popleft()
+                    for v in self.data_set.values():
+                        v.popleft()
+            else:
+                for _ in range(counter-1):
+                    self.t_sliding_window.popleft()
+                    for v in self.data_set.values():
+                        v.popleft()
+                         
+    def _get_interval_length(self, starting_idx = 0):
+        return self.t_sliding_window[-1] - self.t_sliding_window[starting_idx]
+    
+    def _get_avg_values(self):
+        for k, v in self.data_set.items():
+            t_int = self._get_interval_length()
+            avg = (1/t_int)*trapezoid(y=v, x=self.t_sliding_window)
+            self.data_set_avg[k].append(avg)
+    
+    def reset(self):
+        self.t_sliding_window.clear()
+        for v, v_avg in zip(self.data_set.values(), self.data_set_avg.values()):
+            v.clear()
+            v_avg.clear()
+        self.window_size_flag = False
 
-def check_bounds(obs_wrap: ObsStructWrapper, obs_id: int, domain_range: tuple[tuple[float, float], tuple[float, float]]):
-    x_markers = obs_wrap.x_markers[obs_id]
-    y_markers = obs_wrap.y_markers[obs_id]
-    (xmin, xmax), (ymin, ymax) = domain_range
+        if self.init_zero:
+            self.t_sliding_window.append(0)
+            for v, v_avg in zip(self.data_set.values(), self.data_set_avg.values()):
+                v.append(0)
+                v_avg.append(0)
 
-    x_markers_min = np.amin(x_markers)
-    x_markers_max = np.amax(x_markers)
-    y_markers_min = np.amin(y_markers)
-    y_markers_max = np.amax(y_markers)
+#change later for multi dimensional case
+def rbk_interpolation(state, control_vector, centroids):
+    diff = state - centroids
+    norms = (diff*diff)
+    exp_norm = np.exp(-norms)
+    exp_norm_sum = exp_norm.sum()
+    state_control = 0
 
-    x_bool = x_markers_min >= xmin and x_markers_max <= xmax
-    y_bool = y_markers_min >= ymin and y_markers_max <= ymax
+    for c, w in zip(control_vector, exp_norm):
+        state_control += c*w 
+        
+    return state_control/exp_norm_sum
 
-    return x_bool and y_bool
+def get_phase(obs_exporter: ObsExporter):
+    obs_data = np.array(obs_exporter.obs_data[0])
+    time = obs_data[:, 0]
+    frequency = obs_data[:, 1]
+
+    return trapezoid(y=frequency, x=time)
+
 
 
 

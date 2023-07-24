@@ -1,12 +1,12 @@
 grid:
-  nx: 601
-  ny: 151
-  xmin: -5.5
+  nx: 801
+  ny: 201
+  xmin: -7.5
   xmax: 0.5
-  ymin: -0.75
-  ymax: 0.75
+  ymin: -1
+  ymax: 1
   xperiodic: True
-  yperiodic: False
+  yperiodic: True
   epsilon: 2.5
 
 simu:
@@ -18,7 +18,7 @@ simu:
   density1: 1.2
   density2: 1
   surface_tension: 0.0728
-  cfl: 0.3
+  cfl: 0.6
   penalty_factor: 1.e+8
   time_snapshots: 0.05
   time_final: 6.0
@@ -34,6 +34,9 @@ obstacles:
     density: 1
     young_modulus: 1.e+3
     elasticity_modulus: 1.e+1
+
+export_info:
+  results_dirpath: "/scratch/kmaroun/mpc_test"
 
 
 

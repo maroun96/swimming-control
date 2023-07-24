@@ -1,3 +1,4 @@
+import math
 from typing import Union, Callable
 from pathlib import Path
 
@@ -5,16 +6,14 @@ import numpy as np
 from petsc4py import PETSc
 
 from ns2d.utils.pyconfig import initialize_dmda, FieldsContainer, Config
-from ns2d.utils.export import Exporter
+from ns2d.utils.export import Exporter, ObsExporter
 
 from ns2d.solver.navierstokes import navier_stokes_step, init_navier_stokes, deform_bodies
 from ns2d.utils.config import (FieldsStructWrapper, ProcessStructWrapper, GridStructWrapper,
                                 SimuStructWrapper, ObsStructWrapper, LinStructWrapper, ArrayStructWrapper)
 
-from helpers import ObsExporter
-
 class NSSolver:
-    def __init__(self, main_cfg: Config, comm: PETSc.Comm, obs_exporter: ObsExporter = None) -> None:
+    def __init__(self, main_cfg: Config, comm: PETSc.Comm) -> None:
         da = initialize_dmda(grid=main_cfg.grid, comm=comm)
         da.setUniformCoordinates(xmin=main_cfg.grid.xmin, xmax=main_cfg.grid.xmax, ymin=main_cfg.grid.ymin, 
                          ymax=main_cfg.grid.ymax, zmin = 0, zmax = 0)
@@ -35,10 +34,14 @@ class NSSolver:
         self.lin_wrap = LinStructWrapper()
         self.arr_wrap = ArrayStructWrapper()
 
-        self._amax = 1.0
+        # self._amax = 1.0
         self._ta = 0.2
 
-        self._areg_func = lambda t: min(t/self._ta, self._amax)
+        def smoothstep(t):
+            k = max(0, min(1, t/self._ta))
+            return k**2*(3-2*k)
+
+        self._areg_func = smoothstep
 
         #Add these parameters to config later
         #self.obs_wrap.maximum_amplitude = (1, 1)
@@ -57,11 +60,9 @@ class NSSolver:
             self.arr_wrap
         )
 
-        
-
+    
         self.fields_exporter = Exporter(da=da, grid=main_cfg.grid, comm=comm)
-        self.obs_exporter = obs_exporter
-
+    
         self._global_counter = 0
         self._export_time = 0
         self._export_time_interval = self.simu_wrap.time_snapshots
@@ -98,10 +99,7 @@ class NSSolver:
             self.lin_wrap,
             self.arr_wrap
         )
-            
-        if self.obs_exporter:
-            self.obs_exporter.append_obs_data(simu_wrap=self.simu_wrap, obs_wrap=self.obs_wrap)
-            
+                    
         self._export_vectors()
     
     def add_exported_vec(self, vec: PETSc.Vec, vector_name: str):
@@ -125,7 +123,6 @@ class NSSolver:
                 self.lin_wrap,
                 self.arr_wrap
             )
-        self.obs_exporter.clear()
         self._global_counter = 0
         self._export_time = 0        
             
