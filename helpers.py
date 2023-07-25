@@ -1,4 +1,6 @@
 from collections import deque
+from itertools import product
+from math import dist
 
 import numpy as np
 from ns2d.utils.export import ObsExporter
@@ -17,6 +19,14 @@ class SlidingWindow:
 
         if self.init_zero:
             self.t_sliding_window.append(0)
+    
+    @property
+    def window_length(self):
+        return self._window_length
+    
+    @window_length.setter
+    def window_length(self, tl: float):
+        self._window_length = tl
 
     def append(self, t, other_data = None):
         self.t_sliding_window.append(t)
@@ -103,6 +113,29 @@ def get_phase(obs_exporter: ObsExporter):
     frequency = obs_data[:, 1]
 
     return trapezoid(y=frequency, x=time)
+
+def construct_iterator(freq_list: list[float], amp_list: list[float]):
+    default_frequency = 2.0
+    default_amplitude = 1.0
+
+    if freq_list and amp_list:
+        return product(freq_list, amp_list)
+    elif freq_list and not amp_list:
+        return [(f, default_amplitude) for f in freq_list]
+    elif not freq_list and amp_list:
+        return [(default_frequency, a) for a in amp_list]
+    else:
+        return [(default_frequency, default_amplitude)]
+
+def compute_dist(obs_wrap, initial_position: tuple[float, float]):
+    current_position = (obs_wrap.x[0], obs_wrap.y[0])
+    return dist(current_position, initial_position)
+
+
+def smoothstep(t, tsmooth):
+    k = max(0, min(1, t/tsmooth))
+    return k**2*(3-2*k)
+
 
 
 
