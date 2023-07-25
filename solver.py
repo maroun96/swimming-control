@@ -34,15 +34,7 @@ class NSSolver:
         self.lin_wrap = LinStructWrapper()
         self.arr_wrap = ArrayStructWrapper()
 
-        # self._amax = 1.0
-        self._ta = 0.2
-
-        def smoothstep(t):
-            k = max(0, min(1, t/self._ta))
-            return k**2*(3-2*k)
-
-        self._areg_func = smoothstep
-
+        
         #Add these parameters to config later
         #self.obs_wrap.maximum_amplitude = (1, 1)
         self.obs_wrap.wavelength = (1, 1)
@@ -83,11 +75,7 @@ class NSSolver:
         while(self.simu_wrap.time < t_final):
             self.step(phase=phase_func(self.simu_wrap.time))
         
-    def step(self, phase):
-        self.obs_wrap.phase = (phase, 1)
-
-        self.obs_wrap.maximum_amplitude = (self._areg_func(t=self.simu_wrap.time), 1)
-
+    def step(self):
         PETSc.Sys.Print(f"amax = {self.obs_wrap.maximum_amplitude[0]}")
 
         navier_stokes_step(
