@@ -1,5 +1,8 @@
+import re
+
 from collections import deque
 from itertools import product
+from pathlib import Path
 from math import dist
 
 import numpy as np
@@ -135,6 +138,13 @@ def compute_dist(obs_wrap, initial_position: tuple[float, float]):
 def smoothstep(t, tsmooth):
     k = max(0, min(1, t/tsmooth))
     return k**2*(3-2*k)
+
+def parse_sim_dir(sim_dir: Path):
+    dir_name = sim_dir.name
+    n_list = re.findall(r"[-+]?(?:\d*\.*\d+)", dir_name)
+    freq = n_list[0]
+    amp = n_list[1]
+    return freq, amp
 
 
 
