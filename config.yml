@@ -29,14 +29,14 @@ simu:
 obstacles_number: 1
 
 obstacles:
-  - markers_number: 301
+  - markers_number: 201
     diameter: 1
     density: 1
     young_modulus: 1.e+3
     elasticity_modulus: 1.e+1
 
 export_info:
-  results_dirpath: "/scratch/kmaroun/mpc_test"
+  results_dirpath: "/scratch/kmaroun/fish_freq_list"
 
 
 
