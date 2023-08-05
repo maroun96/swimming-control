@@ -111,6 +111,8 @@ def compute_aics(trajectories, controls, times, thresholds):
 def load_dataframes(result_dir: Path):
     df_dict = {}
     for sub_dir in result_dir.glob("*"):
+        if not sub_dir.name.startswith("simu_f"):
+            continue
         control_inputs = parse_sim_dir(sim_dir=sub_dir)
         df = pd.read_hdf(sub_dir / "obstacles.hdf5")
         df_dict.update({control_inputs: df})
@@ -120,7 +122,7 @@ CFG_PATH = Path("config.yml").resolve()
 MAIN_CFG = Config.from_yaml(config_path=CFG_PATH)
 RESULTS_DIR_PATH = Path(MAIN_CFG.export_info.results_dirpath).resolve()
 
-plt.style.use('./presentation.mplstyle')
+# plt.style.use('./presentation.mplstyle')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
