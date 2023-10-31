@@ -1,12 +1,16 @@
 import re
-
+import os
 from collections import deque
+from dataclasses import dataclass
 from itertools import product
-from pathlib import Path
 from math import dist
+from pathlib import Path
+from typing import Union
 
 import numpy as np
+from dacite import from_dict
 from ns2d.utils.export import ObsExporter
+from ns2d.utils.pyconfig import load_yaml
 from scipy.integrate import trapezoid
 
 
@@ -149,6 +153,20 @@ class Sindy2MPC:
             for ftr, coef in zip(self._processed_ftr_list[n], nnz_coefs):
                 rhs += ftr*coef
             self._mpc_model.set_rhs(x, rhs)
+
+@dataclass
+class MPCConfig:
+    n_horizon: int
+    t_step: float
+    freq_control: bool
+    amp_control: bool
+    sindy_model_path: Union[str, os.PathLike]
+
+    @classmethod
+    def from_yaml(cls, config_path):
+        cfg = load_yaml(config_path=config_path)
+        return from_dict(data_class=cls, data=cfg)
+
 
 #change later for multi dimensional case
 def rbk_interpolation(state, control_vector, centroids):

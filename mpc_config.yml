@@ -1,0 +1,5 @@
+n_horizon: 20
+t_step: 0.03
+freq_control: True
+amp_control: True
+sindy_model_path: "/scratch/kmaroun/sindy_model.pkl"
