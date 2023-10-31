@@ -97,6 +97,59 @@ class SlidingWindow:
                 v.append(0)
                 v_avg.append(0)
 
+class Sindy2MPC:
+    def __init__(self, sindy_model, mpc_model):
+        self._sindy_model = sindy_model
+        self._mpc_model = mpc_model
+        self._feature_names = self._sindy_model.feature_names
+        self._check_feature_names()
+        
+        self._basis_functions = self._sindy_model.get_feature_names()
+        self._coefficients = self._sindy_model.coefficients()
+        
+        self._n_odes, self._n_basis_functions = self._coefficients.shape
+
+        assert self._n_odes == len(self._mpc_model.x.keys())
+        
+        self._processed_ftr_list = [[]]*self._n_odes
+        
+        self._get_processed_ftr_list()
+    
+    def _check_feature_names(self):
+        for feature in self._feature_names:
+            assert (feature in self._mpc_model.x.keys()) or (feature in self._mpc_model.u.keys())
+            
+    def _access_mpc_model_var(self, var_name):
+        if var_name in self._mpc_model.x.keys():
+            return self._mpc_model.x[var_name]
+        elif var_name in self._mpc_model.u.keys():
+            return self._mpc_model.u[var_name]  
+    
+    def _process_ftr(self, split_ftr):
+        if '^' in split_ftr:
+            var_name, exp = split_ftr.split('^')
+            mpc_var = self._access_mpc_model_var(var_name)
+            return mpc_var**(int(exp))
+        else:
+            mpc_var = self._access_mpc_model_var(split_ftr)
+            return mpc_var
+    
+    def _get_processed_ftr_list(self):
+        for ode_idx,coef_array in enumerate(self._sindy_model.coefficients()): 
+            for ftr, coef in zip(self._sindy_model.get_feature_names(), coef_array):
+                if coef != 0:
+                    self._processed_ftr_list[ode_idx].append(np.prod(list(map(self._process_ftr, ftr.split()))))
+    
+    def set_mpc_model_rhs(self):
+        for n, x in enumerate(self._mpc_model.x.keys()):
+            coefs = self._coefficients[n]
+            nnz_idx = coefs.nonzero()
+            nnz_coefs = coefs[nnz_idx]
+            rhs = 0
+            for ftr, coef in zip(self._processed_ftr_list[n], nnz_coefs):
+                rhs += ftr*coef
+            self._mpc_model.set_rhs(x, rhs)
+
 #change later for multi dimensional case
 def rbk_interpolation(state, control_vector, centroids):
     diff = state - centroids
