@@ -10,6 +10,7 @@ grid:
   epsilon: 2.5
 
 simu:
+  adaptive: False
   bi_fluid: False
   fluid: 2 #(Set to zero if bifluid else either 1 or 2)
   gravity: 0.0
@@ -36,7 +37,7 @@ obstacles:
     elasticity_modulus: 1.e+1
 
 export_info:
-  results_dirpath: "/scratch/kmaroun/fish_freq_list"
+  results_dirpath: "/scratch/kmaroun/mpc_v2_test"
 
 
 
