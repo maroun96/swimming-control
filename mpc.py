@@ -1,95 +1,108 @@
 import sys
 from pathlib import Path
 
+import dill as pickle
+import do_mpc
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import do_mpc
 import petsc4py
-
-from petsc4py import PETSc
-from scipy.interpolate import PchipInterpolator
-
-from ns2d.utils.pyconfig import Config
 from ns2d.utils.export import ObsExporter
+from ns2d.utils.pyconfig import Config
+from petsc4py import PETSc
 
+from helpers import MPCConfig, Sindy2MPC, get_phase, smoothstep
 from solver import NSSolver
-from helpers import get_phase, smoothstep
 
 
-def setup_model():
+def setup_model(mpc_config: MPCConfig):
     model_type = "continuous"
-    model = do_mpc.model.Model(model_type)
+    mpc_model = do_mpc.model.Model(model_type)
 
-    u = model.set_variable(var_type="_x", var_name="u", shape=(1,1))
-    f = model.set_variable(var_type="_u", var_name="f")
+    mpc_model.set_variable(var_type="_x", var_name="ux", shape=(1,1))
+    
+    if mpc_config.freq_control:
+        mpc_model.set_variable(var_type="_u", var_name="f")
+    if mpc_config.amp_control:
+        mpc_model.set_variable(var_type="_u", var_name="a")
 
-    a1 = 0.368
-    a2 = -0.089
+    with open(mpc_config.sindy_model_path, "rb") as f:
+        sindy_model = pickle.load(file=f)
+    
+    sindy2mpc = Sindy2MPC(sindy_model=sindy_model, mpc_model=mpc_model)
+    sindy2mpc.set_mpc_model_rhs()
+    mpc_model.setup()
 
-    model.set_rhs("u", a1*u**2+a2*f**2)
-    model.setup()
+    return mpc_model
 
-    return model
-
-def setup_mpc_optimizer(n_horizon, t_step, model):
-    mpc = do_mpc.controller.MPC(model)
+def setup_mpc_optimizer(mpc_config: MPCConfig, mpc_model):
+    mpc = do_mpc.controller.MPC(mpc_model)
 
     setup_mpc = {
-        'n_horizon': n_horizon,
-        't_step': t_step,
+        'n_horizon': mpc_config.n_horizon,
+        't_step': mpc_config.t_step,
         'store_full_solution': True,
     }
     mpc.set_param(**setup_mpc)
 
     u_ref = -1
-    u = model.x["u"]
+    u = mpc_model.x["ux"]
 
     mterm = (u-u_ref)**2
     lterm = (u-u_ref)**2
 
     mpc.set_objective(mterm=mterm, lterm=lterm)
 
-    mpc.set_rterm(
-        f=0.01,
-    )
+    if (mpc_config.freq_control and not mpc_config.amp_control):
+        mpc.set_rterm(f=mpc_config.rterm_freq)
+        mpc.bounds['lower','_u', 'f'] = 0
+        mpc.bounds['upper','_u', 'f'] = 3
+    elif (not mpc_config.freq_control and mpc_config.amp_control):
+        mpc.set_rterm(a=mpc_config.rterm_amp)
+        mpc.bounds["lower", "_u", "a"] = 0
+        mpc.bounds["upper", "_u", "a"] = 1.5
+    elif (mpc_config.freq_control and mpc_config.amp_control):
+        mpc.set_rterm(f=mpc_config.rterm_freq, a=mpc_config.rterm_amp)
+        mpc.bounds['lower','_u', 'f'] = 0
+        mpc.bounds['upper','_u', 'f'] = 3
+        mpc.bounds["lower", "_u", "a"] = 0
+        mpc.bounds["upper", "_u", "a"] = 1.5
+    else:
+        raise Exception("At least one of freq_control or amp_control should be true")
     
-    # Lower bounds on inputs:
-    mpc.bounds['lower','_u', 'f'] = 0
-    # Upper bounds on inputs:
-    mpc.bounds['upper','_u', 'f'] = 3
-
     mpc.setup()
 
     return mpc
 
-def setup_simulator(model, t_step):
-    simulator = do_mpc.simulator.Simulator(model)
-    simulator.set_param(t_step = t_step)
+# def setup_simulator(mpc_model, mpc_config: MPCConfig):
+#     simulator = do_mpc.simulator.Simulator(mpc_model)
+#     simulator.set_param(t_step = mpc_config.t_step)
 
-    simulator.setup()
+#     simulator.setup()
 
-    return simulator
+#     return simulator
 
 def mpc_step(mpc, x0):
     x0 = np.array([x0]).reshape(-1,1)
     u0 = mpc.make_step(x0)
-    return u0.item()
+    return u0.squeeze()
 
-def simulator_step(simulator, u0):
-    u0 = np.array([u0]).reshape(-1,1)
-    x0 = simulator.make_step(u0)
-    return x0.item()
+# def simulator_step(simulator, u0):
+#     u0 = np.array([u0]).reshape(-1,1)
+#     x0 = simulator.make_step(u0)
+#     return x0.item()
 
 
 COMM = PETSc.COMM_WORLD
 RANK = COMM.Get_rank()
 CFG_PATH = Path("config.yml").resolve()
+MPC_CFG_PATH = Path("mpc_config.yml").resolve()
 MAIN_CFG = Config.from_yaml(config_path=CFG_PATH)
+MPC_CFG = MPCConfig.from_yaml(config_path=MPC_CFG_PATH)
 RESULTS_DIR_PATH = Path(MAIN_CFG.export_info.results_dirpath).resolve()
-N_HORIZON = 20
-MPC_T_STEP = 0.03
+
 T_SMOOTH = 0.2
+
 
 if __name__ == "__main__":
     petsc4py.init(sys.argv, comm=COMM)
@@ -98,6 +111,7 @@ if __name__ == "__main__":
     
     obs_exporter.add_exported_param(name=[
         "swimming_frequency",
+        "maximum_amplitude",
         "x",
         "y",
         "velocity_x",
@@ -115,20 +129,19 @@ if __name__ == "__main__":
     ns_solver.add_exported_vec(vec=ns_solver.fields.solid_ls[1].local_levelset_solid, vector_name="solid_level_set")
 
     ns_solver.results_dir_path = RESULTS_DIR_PATH / "opt_control_simu"
+    ns_solver.simu_wrap.dt = 0.002
 
     if RANK == 0:
-        model = setup_model()
-        mpc = setup_mpc_optimizer(n_horizon=N_HORIZON, t_step=MPC_T_STEP, model=model)
-        simulator = setup_simulator(model=model, t_step=MPC_T_STEP)
+        mpc_model = setup_model(mpc_config=MPC_CFG)
+        mpc = setup_mpc_optimizer(mpc_config=MPC_CFG, mpc_model=mpc_model)
         x0 = np.array([ns_solver.obs_wrap.velocity_x[0]]).reshape(-1,1)
-        simulator.x0 = x0
+
         mpc.x0 = x0
         mpc.set_initial_guess()
         control_time = 0
-        sindy_model_traj = [x0.item()]
-        sindy_model_time = [control_time]
 
-    freq = None
+    freq = 2.0
+    amp = 1.0
     mpi_comm = COMM.tompi4py()
     
 
@@ -136,16 +149,24 @@ if __name__ == "__main__":
         if RANK == 0:
             if ns_solver.simu_wrap.time >= control_time:
                 PETSc.Sys.Print(f"x0 = {ns_solver.obs_wrap.velocity_x[0]}", comm=COMM)
-                freq = mpc_step(mpc=mpc, x0=ns_solver.obs_wrap.velocity_x[0])
+                u = mpc_step(mpc=mpc, x0=ns_solver.obs_wrap.velocity_x[0])
+                if (MPC_CFG.freq_control and not MPC_CFG.amp_control):
+                    freq = u.item()
+                elif (not MPC_CFG.freq_control and MPC_CFG.amp_control):
+                    amp = u.item()
+                elif (MPC_CFG.freq_control and MPC_CFG.amp_control):
+                    freq = u[0]
+                    amp = u[1]
                 PETSc.Sys.Print(f"freq = {freq}", comm=COMM)
-                control_time += MPC_T_STEP
-                sindy_model_time.append(control_time)
-                sindy_model_traj.append(simulator_step(simulator=simulator, u0=freq))
+                PETSc.Sys.Print(f"amp = {amp}", comm=COMM)
+                control_time += MPC_CFG.t_step
 
-        COMM.barrier()
-        freq = mpi_comm.bcast(freq, root=0)
+        if MPC_CFG.freq_control:
+            freq = mpi_comm.bcast(freq, root=0)
+        if MPC_CFG.amp_control:
+            amp = mpi_comm.bcast(amp, root=0)
         ns_solver.obs_wrap.swimming_frequency = (freq, 1)
-        reg_amp = smoothstep(t=ns_solver.simu_wrap.time, tsmooth=T_SMOOTH)
+        reg_amp = amp*smoothstep(t=ns_solver.simu_wrap.time, tsmooth=T_SMOOTH)
         ns_solver.obs_wrap.maximum_amplitude = (reg_amp, 1)
         obs_exporter.append_obs_data(ns_solver.simu_wrap, ns_solver.obs_wrap)
         phase = get_phase(obs_exporter=obs_exporter)
@@ -154,7 +175,7 @@ if __name__ == "__main__":
     
     obs_num = ns_solver.obs_wrap.obstacles_number
     obs_data = obs_exporter.obs_data
-    columns = ["time", "frequency", "x", "y", "Ux", "Uy", "Fx", "Fy", "Pd", "surface_area"]
+    columns = ["time", "frequency", "amplitude", "x", "y", "Ux", "Uy", "Fx", "Fy", "Pd", "surface_area"]
 
     if RANK==0:
         data_frames = []
@@ -163,13 +184,6 @@ if __name__ == "__main__":
             data_frames.append(df)
             df.to_hdf(RESULTS_DIR_PATH / f"obstacles.hdf5", key=f"obstacle{i+1}", mode="a")
         
-        fig, ax = plt.subplots()
-        ax.plot(sindy_model_time, sindy_model_traj)
-        ax.set_xlabel("time [s]")
-        ax.set_ylabel("U [m/s]")
-
-        ax.grid(linestyle="--")
-        fig.savefig(RESULTS_DIR_PATH /"mpc_sindy.png", dpi=300)
 
         df = data_frames[0]
         fig, ax = plt.subplots()
