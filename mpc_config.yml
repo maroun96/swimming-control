@@ -2,4 +2,6 @@ n_horizon: 20
 t_step: 0.03
 freq_control: True
 amp_control: True
+rterm_freq: 1.0
+rterm_amp: 1.0
 sindy_model_path: "/scratch/kmaroun/sindy_model.pkl"

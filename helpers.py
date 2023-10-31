@@ -160,6 +160,8 @@ class MPCConfig:
     t_step: float
     freq_control: bool
     amp_control: bool
+    rterm_freq: float
+    rterm_amp: float
     sindy_model_path: Union[str, os.PathLike]
 
     @classmethod
