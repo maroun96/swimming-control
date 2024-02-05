@@ -12,7 +12,7 @@ from ns2d.utils.pyconfig import Config
 from ns2d.utils.export import ObsExporter
 
 from solver import NSSolver
-from helpers import SlidingWindow, get_phase, construct_iterator, compute_dist, smoothstep 
+from helpers import get_phase, construct_iterator, smoothstep, get_cumul_energy
 
 COMM = PETSc.COMM_WORLD
 RANK = COMM.Get_rank()
@@ -45,39 +45,36 @@ if __name__ == "__main__":
     ns_solver.add_exported_vec(vec=ns_solver.fields.current_time.local_pressure, vector_name="p")
     ns_solver.add_exported_vec(vec=ns_solver.fields.solid_ls[1].local_levelset_solid, vector_name="solid_level_set")
 
-    freq_list = [1.0, 1.5, 2.0, 2.5, 3.0]
-    amp_list = []
+    freq_list = [1.55]
+    amp_list = [0.5]
+
+    ns_solver.simu_wrap.dt = 0.002
 
     iterator = construct_iterator(freq_list=freq_list, amp_list=amp_list)
 
-    window = SlidingWindow(window_length=0.2, init_zero=True)
-    window.add_data(name="Ux")
-    window.add_data(name="Pd")
 
     for it, (freq, amp) in enumerate(iterator):
         ns_solver.reset(func_count=it)
-        window.reset()
-        window.window_length = 1 / freq
         obs_exporter.clear()
         sim_path = RESULTS_DIR_PATH / f"simu_f_{freq}_a_{amp}"
         ns_solver.results_dir_path = sim_path
-        initial_position = (ns_solver.obs_wrap.x[0], ns_solver.obs_wrap.y[0])
+
+        ed_list = []
     
-        while (compute_dist(ns_solver.obs_wrap, initial_position=initial_position) < 6):
+        while (ns_solver.simu_wrap.time < MAIN_CFG.simu.time_final):
             ns_solver.obs_wrap.swimming_frequency = (freq, 1)
-            reg_amp = smoothstep(t=ns_solver.simu_wrap.time, tsmooth=T_SMOOTH)
+            reg_amp = amp*smoothstep(t=ns_solver.simu_wrap.time, tsmooth=T_SMOOTH)
             ns_solver.obs_wrap.maximum_amplitude = (reg_amp, 1)
             obs_exporter.append_obs_data(ns_solver.simu_wrap, ns_solver.obs_wrap)
             phase = get_phase(obs_exporter=obs_exporter)
             ns_solver.obs_wrap.phase = (phase, 1)
+            ed = get_cumul_energy(obs_exporter=obs_exporter)
+            PETSc.Sys.Print(f"ed = {ed}")
+            ed_list.append(ed)
+
             ns_solver.step()
 
-            t = ns_solver.simu_wrap.time
-            Ux = ns_solver.obs_wrap.velocity_x[0]
-            Pd = ns_solver.obs_wrap.power_def[0]
-            other_data = {"Ux": Ux, "Pd": Pd}
-            window.append(t=t, other_data=other_data)
-
+    
             
         obs_num = ns_solver.obs_wrap.obstacles_number
         obs_data = obs_exporter.obs_data
@@ -90,11 +87,9 @@ if __name__ == "__main__":
                 data_frames.append(df)
                 df.to_hdf(sim_path / f"obstacles.hdf5", key=f"obstacle{i+1}", mode="a")
             
-            with open(sim_path / "ux_avg.pkl", "wb") as f:
-                pickle.dump(obj=window.data_set_avg["Ux"], file=f)
-
-            with open(sim_path / "pd_avg.pkl", "wb") as f:
-                pickle.dump(obj=window.data_set_avg["Pd"], file=f)
+            with open(sim_path / "ed.pkl", "wb") as f:
+                pickle.dump(obj=ed_list, file=f)
+            
             
 
             
