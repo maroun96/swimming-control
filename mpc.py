@@ -125,8 +125,9 @@ if __name__ == "__main__":
     ns_solver = NSSolver(main_cfg=MAIN_CFG, comm=COMM)
     ns_solver.add_exported_vec(vec=ns_solver.fields.current_time.local_ux, vector_name="ux")
     ns_solver.add_exported_vec(vec=ns_solver.fields.current_time.local_uy, vector_name="uy")
-    ns_solver.add_exported_vec(vec=ns_solver.fields.current_time.local_pressure, vector_name="p")
+    #ns_solver.add_exported_vec(vec=ns_solver.fields.current_time.local_pressure, vector_name="p")
     ns_solver.add_exported_vec(vec=ns_solver.fields.solid_ls[1].local_levelset_solid, vector_name="solid_level_set")
+    ns_solver.add_exported_vec(vec=ns_solver.fields.next_time.local_vorticity, vector_name="vorticity")
 
     ns_solver.results_dir_path = RESULTS_DIR_PATH / "opt_control_simu"
     ns_solver.simu_wrap.dt = 0.002
