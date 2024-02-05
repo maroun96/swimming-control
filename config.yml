@@ -22,7 +22,7 @@ simu:
   cfl: 0.6
   penalty_factor: 1.e+8
   time_snapshots: 0.05
-  time_final: 6.0
+  time_final: 12
   implicit: 0 #0: explicit 1: implicit (viscous term)
   convection_scheme: 4 # 2: mittal 3: upwind 4: weno (else central difference)
   fluid_force: "exact"
@@ -37,7 +37,7 @@ obstacles:
     elasticity_modulus: 1.e+1
 
 export_info:
-  results_dirpath: "/scratch/kmaroun/mpc_v2_test"
+  results_dirpath: "/scratch/kmaroun/continuous_swimming"
 
 
 
