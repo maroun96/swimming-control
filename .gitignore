@@ -60,3 +60,9 @@ ns2d/utils/config.c
 
 #virtual environment
 venv
+
+#jupyter notebook related
+.ipynb_checkpoints/
+
+#numpy arrays
+*.npy
