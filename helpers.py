@@ -190,6 +190,15 @@ def get_phase(obs_exporter: ObsExporter):
 
     return trapezoid(y=frequency, x=time)
 
+#Change later to more general function
+def get_cumul_energy(obs_exporter: ObsExporter):
+    obs_data = np.array(obs_exporter.obs_data[0])
+    time = obs_data[:, 0]
+    power_def = obs_data[:, 9]
+
+    return trapezoid(y=power_def, x=time)
+
+
 def construct_iterator(freq_list: list[float], amp_list: list[float]):
     default_frequency = 2.0
     default_amplitude = 1.0
