@@ -66,3 +66,6 @@ venv
 
 #numpy arrays
 *.npy
+
+#directory to store pickled sindy model
+model/
