@@ -20,6 +20,7 @@ def setup_model(mpc_config: MPCConfig):
     mpc_model = do_mpc.model.Model(model_type)
 
     mpc_model.set_variable(var_type="_x", var_name="ux", shape=(1,1))
+    mpc_model.set_variable(var_type="_tvp", var_name="u_ref", shape=(1, 1))
     
     if mpc_config.freq_control:
         mpc_model.set_variable(var_type="_u", var_name="f")
@@ -35,7 +36,7 @@ def setup_model(mpc_config: MPCConfig):
 
     return mpc_model
 
-def setup_mpc_optimizer(mpc_config: MPCConfig, mpc_model):
+def setup_mpc_optimizer(mpc_config: MPCConfig, mpc_model: do_mpc.model.Model):
     mpc = do_mpc.controller.MPC(mpc_model)
 
     setup_mpc = {
@@ -45,7 +46,24 @@ def setup_mpc_optimizer(mpc_config: MPCConfig, mpc_model):
     }
     mpc.set_param(**setup_mpc)
 
-    u_ref = -1
+    t_switch = 3.0
+    tvp_struct_mpc = mpc.get_tvp_template()
+
+    #fix switching time issue
+    def tvp_fun_mpc(t_now):
+        switch_ind = int((t_switch-t_now)/mpc_config.t_step)
+        switch_ind = max(switch_ind, 0)
+        switch_ind = min(switch_ind, mpc_config.n_horizon)
+        switch_ind += 1
+        
+        tvp_struct_mpc["_tvp", :switch_ind, "u_ref"] = -0.5
+        tvp_struct_mpc["_tvp", switch_ind:, "u_ref"] = -1.0
+
+        return tvp_struct_mpc
+
+    mpc.set_tvp_fun(tvp_fun=tvp_fun_mpc)
+
+    u_ref = mpc_model.tvp["u_ref"]
     u = mpc_model.x["ux"]
 
     mterm = (u-u_ref)**2
@@ -53,6 +71,8 @@ def setup_mpc_optimizer(mpc_config: MPCConfig, mpc_model):
 
     mpc.set_objective(mterm=mterm, lterm=lterm)
 
+
+    
     if (mpc_config.freq_control and not mpc_config.amp_control):
         mpc.set_rterm(f=mpc_config.rterm_freq)
         mpc.bounds['lower','_u', 'f'] = 0
@@ -74,23 +94,10 @@ def setup_mpc_optimizer(mpc_config: MPCConfig, mpc_model):
 
     return mpc
 
-# def setup_simulator(mpc_model, mpc_config: MPCConfig):
-#     simulator = do_mpc.simulator.Simulator(mpc_model)
-#     simulator.set_param(t_step = mpc_config.t_step)
-
-#     simulator.setup()
-
-#     return simulator
-
 def mpc_step(mpc, x0):
     x0 = np.array([x0]).reshape(-1,1)
     u0 = mpc.make_step(x0)
     return u0.squeeze()
-
-# def simulator_step(simulator, u0):
-#     u0 = np.array([u0]).reshape(-1,1)
-#     x0 = simulator.make_step(u0)
-#     return x0.item()
 
 
 COMM = PETSc.COMM_WORLD
@@ -146,10 +153,11 @@ if __name__ == "__main__":
     mpi_comm = COMM.tompi4py()
     
 
-    while (ns_solver.simu_wrap.time < 4.0):
+    while (ns_solver.simu_wrap.time < 6.0):
         if RANK == 0:
             if ns_solver.simu_wrap.time >= control_time:
                 PETSc.Sys.Print(f"x0 = {ns_solver.obs_wrap.velocity_x[0]}", comm=COMM)
+                tvp_struct_mpc = mpc.get_tvp_template()
                 u = mpc_step(mpc=mpc, x0=ns_solver.obs_wrap.velocity_x[0])
                 if (MPC_CFG.freq_control and not MPC_CFG.amp_control):
                     freq = u.item()
